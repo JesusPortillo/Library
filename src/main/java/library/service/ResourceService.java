@@ -4,12 +4,13 @@ import library.dto.ResourceDTO;
 import library.dto.ResourceMapper;
 import library.model.Resource;
 import library.repository.ResourceRepository;
-import net.minidev.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 public class ResourceService {
@@ -30,38 +31,37 @@ public class ResourceService {
     }
 
     public ResourceDTO findResource(String title){
-        Optional<ResourceDTO> resourceDTOS = getAllResources().stream()
-                .findFirst().filter(resourceDTO -> resourceDTO.getTitle()
-                .equals(title) && isAvailable(resourceDTO));
-        if (resourceDTOS.isPresent()){
-            return resourceDTOS.get();
-        }
-        return null;
+       try {
+           Stream<Resource> resource = repository.findAll().stream().filter(resource1 -> resource1.getTitle().equals(title));
+           return mapper.convertToResourceDTO(resource.findFirst().get());
+       }catch (Exception ex){
+           System.out.println(ex.getMessage());
+       }
+    return null;
     }
 
     public ResourceDTO lendResource(String title){
 
         ResourceDTO resourceDTO = findResource(title);
-        if ( resourceDTO != null && isAvailable(resourceDTO) ){
-            repository.delete(mapper.convertToModel(resourceDTO));
-            return mapper.convertToResourceDTO(repository.save(mapper.convertToModel(substractQuantityAndModifyDate(resourceDTO))));
+        if (resourceDTO != null && isAvailable(resourceDTO)){
+            Resource resource = mapper.convertToModel(substractQuantityAndModifyDate(resourceDTO));
+            return mapper.convertToResourceDTO(repository.save(resource));
 
         }
-        throw new NoSuchElementException("No está disponible el titular "
-                + title + "su ultimo ejemplar se prestó " + resourceDTO.getLastResourceLoanDate());
+        return null;
     }
 
-    public ResourceDTO addResource(ResourceDTO resourceDTO){
-       if (findResource(resourceDTO.getTitle()) != null){
-            Resource resource = mapper.convertToModel(resourceDTO);
-            resource.setQuantityAvailable(resource.getQuantityAvailable()+1);
-            return mapper.convertToResourceDTO(resource);
-       }
-       repository.save(mapper.convertToModel(resourceDTO));
-       return resourceDTO;
+    public boolean isAvailable(ResourceDTO resourceDTO){
+        return resourceDTO.getQuantityAvailable() > 0;
     }
 
-
+    public String checkAvailability(String title){
+        ResourceDTO resourceDTO = findResource(title);
+        if (resourceDTO != null && isAvailable(resourceDTO)){
+            return "Hay una disponibilidad de "+ resourceDTO.getQuantityAvailable() +" recursos";
+        }
+        return "No hay disponibilidad de este recurso";
+    }
 
     public ResourceDTO substractQuantityAndModifyDate(ResourceDTO resourceDTO){
         SimpleDateFormat formatter= new SimpleDateFormat("yyyy-MM-dd");
@@ -71,24 +71,56 @@ public class ResourceService {
         resource.setLastResourceLoanDate(formatter.format(date));
         return mapper.convertToResourceDTO(resource);}
 
-    public boolean isAvailable(ResourceDTO resourceDTO){
-       return resourceDTO.getQuantityAvailable() > 0;
+    public String addResource(String title){
+        ResourceDTO resourceDTO = findResource(title);
+       if (resourceDTO != null){
+            Resource resource = mapper.convertToModel(resourceDTO);
+            resource.setQuantityAvailable(resource.getQuantityAvailable()+1);
+            repository.save(resource);
+            return "El recurso " + resourceDTO.getTitle() + "ha sido devuelto";
+       }
+       return "El recurso no se prestó en ningun momento";
     }
 
     public List<ResourceDTO> recommendedBykindOfResource(String kindOfResource){
-        List<ResourceDTO> resourceDTOS = (List<ResourceDTO>) repository.findAll().stream().filter(resource -> resource.getKindOfResource().equals(kindOfResource));
-        return resourceDTOS;
+        try {
+            Stream<Resource> resource = repository.findAll().stream().filter(resource1 -> resource1.getKindOfResource().equals(kindOfResource));
+            List<Resource> resourceList = resource.collect(Collectors.toList());
+            List<ResourceDTO> resourceDTOList = new ArrayList<>();
+            resourceList.forEach(resource1 -> resourceDTOList.add(mapper.convertToResourceDTO(resource1)));
+            return resourceDTOList;
+        }catch (Exception ex){
+            System.out.println(ex.getMessage());
+        }
+        return null;
     }
 
     public List<ResourceDTO> recommendedBySubject(String subject){
-        List<ResourceDTO> resourceDTOS = (List<ResourceDTO>) repository.findAll().stream().filter(resource -> resource.getSubject().equals(subject));
-        return resourceDTOS;
+        try {
+            Stream<Resource> resource = repository.findAll().stream().filter(resource1 -> resource1.getSubject().equals(subject));
+            List<Resource> resourceList = resource.collect(Collectors.toList());
+            List<ResourceDTO> resourceDTOList = new ArrayList<>();
+            resourceList.forEach(resource1 -> resourceDTOList.add(mapper.convertToResourceDTO(resource1)));
+            return resourceDTOList;
+        }catch (Exception ex){
+            System.out.println(ex.getMessage());
+        }
+        return null;
     }
 
     public List<ResourceDTO> recommendedBykindOfResourceAndSubject(String kindOfResource, String subject){
-        List<ResourceDTO> resourceDTOS = (List<ResourceDTO>) repository.findAll().stream().filter(resource -> resource.getKindOfResource().equals(kindOfResource)
-                && resource.getSubject().equals(subject));
-        return resourceDTOS;
+        try {
+            Stream<Resource> resource = repository.findAll().stream()
+                    .filter(resource1 -> resource1.getKindOfResource().equals(kindOfResource)
+                            && resource1.getSubject().equals(subject));
+            List<Resource> resourceList = resource.collect(Collectors.toList());
+            List<ResourceDTO> resourceDTOList = new ArrayList<>();
+            resourceList.forEach(resource1 -> resourceDTOList.add(mapper.convertToResourceDTO(resource1)));
+            return resourceDTOList;
+        }catch (Exception ex){
+            System.out.println(ex.getMessage());
+        }
+        return null;
     }
 
 
